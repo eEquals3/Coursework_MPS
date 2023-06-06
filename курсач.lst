@@ -1,0 +1,1147 @@
+Microsoft (R) Macro Assembler Version 6.14.8444		    06/04/23 17:57:39
+ъєЁёрў.asm						     Page 1 - 1
+
+
+				.386
+				;Задайте объём ПЗУ в байтах
+ = 1000				RomSize    EQU   4096
+
+				;			ADC_InPort = 1
+				;			ButtonInPort = 1
+				;			IncDecButtonPort = 3
+				;			ADC_OutPort = 0
+				;			ADCOutPort1 = 0
+				;			ADCOutPort2 = 2
+				;			SensorsOutPort = 5
+				;			DisplayOutPort = 1
+				;			DisplayOutPowerPort = 3
+				;			DisplaySensorOutPort = 2
+				;			DisplaySensorOutPowerPort = 4
+				;			CompressorsPort = 5
+				;			NMax = 50
+
+ = 00FE							ADC_InPort = 0FEh
+ = 00FE							ButtonInPort = 0FEh
+ = 00FC							IncDecButtonPort = 0FCh
+ = 00F7							ADC_OutPort = 0F7h
+ = 00F7							ADCOutPort1 = 0F7h
+ = 00FD							ADCOutPort2 = 0FDh
+ = 00FA							SensorsOutPort = 0FAh
+ = 00FE							DisplayOutPort = 0FEh
+ = 00FC							DisplayOutPowerPort = 0FCh
+ = 00FD							DisplaySensorOutPort = 0FDh
+ = 00FB							DisplaySensorOutPowerPort = 0FBh
+ = 00FA							CompressorsPort = 0FAh
+ = 0032							NMax = 50
+
+ 0000				IntTable   SEGMENT use16 AT 0
+				;Здесь размещаются адреса обработчиков прерываний
+ 0000				IntTable   ENDS
+
+ 0000				Data       SEGMENT use16 AT 40h
+				;Здесь размещаются описания переменных
+
+ 0000 00						TemperatureFridge db ?
+ 0001  0003 [						TemperatureFridgeBCD db 3 dup(?)
+        00
+       ]
+ 0004  0003 [						TemperatureFridgeBCD_Old db 3 dup(?)
+        00
+       ]
+ 0007  0002 [						TemperatureFridgeBCD_Repair db 2 dup(?)
+        00
+       ]
+ 0009  0002 [						SelectedTemperatureFridge db 2 dup (?)
+        00
+       ]
+ 000B 00						TemperatureFreezer db ?
+ 000C  0003 [						TemperatureFreezerBCD db 3 dup(?)
+        00
+       ]
+ 000F  0003 [						TemperatureFreezerBCD_Old db 3 dup(?)
+        00
+       ]
+ 0012  0002 [						TemperatureFreezerBCD_Repair db 2 dup (?)
+        00
+       ]
+ 0014  0002 [						SelectedTemperatureFreezer db 2 dup (?)
+        00
+       ]
+ 0016 00						DoorFridgeOpenFlag db ?
+ 0017 00						DoorFreezerOpenFlag db ?
+ 0018 00						FreezingFlag db ?
+ 0019  000A [						DataHexArr db 10 dup(?) 
+        00
+       ]
+ 0023  000A [						DataHexTabl db 10 dup(?)
+        00
+       ]
+ 002D 00						OldIncDecButtonsImage db ?
+ 002E 00						WaitModeFridge db ?
+ 002F 00						WaitModeFreezer db ?
+ 0030 0000						TempretureFreezerOn dw ?
+ 0032 00						FridgeCompressor db ?
+ 0033 00						FreezerCompressor db ?
+ 0034 00						RepairFlag db ?
+ 0035  0002 [						TimerFridge dw 2 dup (?)
+        0000
+       ]
+ 0039  0002 [						TimerFreezer dw 2 dup (?)
+        0000
+       ]
+ 003D 00						TimeOutFlagFridge db ?
+ 003E 00						TimeOutFlagFreezer db ?
+
+ 003F				Data       ENDS
+
+				;Задайте необходимый адрес стека
+ 0000				Stk        SEGMENT use16 AT 2000h
+				;Задайте необходимый размер стека
+ 0000  0010 [			           dw    16 dup (?)
+        0000
+       ]
+ 0020				StkTop     Label Word
+ 0020				Stk        ENDS
+
+ 0000				InitData   SEGMENT use16
+ 0000				InitDataStart:
+				;Здесь размещаются описания констант
+
+
+
+ 0000				InitDataEnd:
+ 0000				InitData   ENDS
+
+ 0000				Code       SEGMENT use16
+				;Здесь размещаются описания констант
+
+				           ASSUME cs:Code,ds:Data,es:Data
+						   
+ 0000 00 01 02 03 04 05				   HexArr DB 00h,01h,02h,03h,04h,05h,06h,07h,08h,09h
+       06 07 08 09
+ 000A 3F 0C 76 5E 4D 5B				   HexTabl DB 3Fh,0Ch,76h,5Eh,4Dh,5Bh,7Bh,0Eh,7Fh,5Fh
+       7B 0E 7F 5F
+						   
+ 0014				Initialization PROC									;Обнуление всех ячеек
+ 0014  B8 0000				       mov ax, 0
+ 0017  88 26 0034 R				   mov RepairFlag, ah
+ 001B  88 26 0032 R				   mov FridgeCompressor, ah
+ 001F  88 26 0033 R				   mov FreezerCompressor, ah
+ 0023  A3 0030 R				   mov TempretureFreezerOn, ax
+ 0026  88 26 000B R				   mov TemperatureFreezer, ah
+ 002A  88 26 0000 R				   mov TemperatureFridge, ah
+ 002E  88 26 000C R				   mov TemperatureFreezerBCD, ah
+ 0032  88 26 000D R				   mov TemperatureFreezerBCD+1, ah
+ 0036  88 26 000E R				   mov TemperatureFreezerBCD+2, ah
+ 003A  88 26 0012 R				   mov TemperatureFreezerBCD_Repair, ah
+ 003E  88 26 0013 R				   mov TemperatureFreezerBCD_Repair+1, ah
+ 0042  88 26 000F R				   mov TemperatureFreezerBCD_Old, ah
+ 0046  88 26 0010 R				   mov TemperatureFreezerBCD_Old+1, ah
+ 004A  88 26 0011 R				   mov TemperatureFreezerBCD_Old+2, ah
+ 004E  88 26 0001 R				   mov TemperatureFridgeBCD, ah
+ 0052  88 26 0002 R				   mov TemperatureFridgeBCD+1, ah
+ 0056  88 26 0003 R				   mov TemperatureFridgeBCD+2, ah
+ 005A  88 26 0007 R				   mov TemperatureFridgeBCD_Repair, ah
+ 005E  88 26 0008 R				   mov TemperatureFridgeBCD_Repair+1, ah
+ 0062  88 26 0004 R				   mov TemperatureFridgeBCD_Old, ah
+ 0066  88 26 0005 R				   mov TemperatureFridgeBCD_Old+1, ah
+ 006A  88 26 0006 R				   mov TemperatureFridgeBCD_Old+2, ah
+ 006E  88 26 0017 R				   mov DoorFreezerOpenFlag, ah
+ 0072  88 26 0016 R				   mov DoorFridgeOpenFlag, ah
+ 0076  88 26 0018 R				   mov FreezingFlag, ah
+ 007A  88 26 0009 R				   mov SelectedTemperatureFridge, ah
+ 007E  88 26 000A R				   mov SelectedTemperatureFridge+1, ah
+ 0082  88 26 0014 R				   mov SelectedTemperatureFreezer, ah
+ 0086  88 26 002E R				   mov WaitModeFridge, ah
+ 008A  88 26 002F R				   mov WaitModeFreezer, ah
+ 008E  B4 01					   mov ah, 1h
+ 0090  88 26 0015 R				   mov SelectedTemperatureFreezer+1, ah
+ 0094  B8 0000					   mov ax, 0000h
+ 0097  BB 0000					   mov bx, 0000h
+ 009A  A3 0035 R				   mov TimerFridge, ax
+ 009D  89 1E 0037 R				   mov TimerFridge+2, bx
+ 00A1  A3 0039 R				   mov TimerFreezer, ax
+ 00A4  89 1E 003B R				   mov TimerFreezer+2, bx
+ 00A8  C3					   Ret
+ 00A9				Initialization ENDP	 
+
+ 00A9				ButtonsInput PROC									;обработка кнопок открытия/закрытия дверей, т.к. это кнопки режима и им не нужна обработка дребезга и фронтов
+ 00A9  E4 FE					   in al, ButtonInPort
+ 00AB  F6 D0					   not al
+ 00AD  A8 01					   test al, 01h
+ 00AF  74 05					   jz NoDoorFridgeOpen
+ 00B1  C6 06 0016 R 01				   mov DoorFridgeOpenFlag, 01h
+ 00B6				NoDoorFridgeOpen:
+ 00B6  A8 02					   test al, 02h
+ 00B8  74 05					   jz NoDoorFreezerOpen
+ 00BA  C6 06 0017 R 01				   mov DoorFreezerOpenFlag, 01h
+ 00BF				NoDoorFreezerOpen:
+ 00BF  A8 04					   test al, 04h		   
+ 00C1  74 05					   jz NoFreezingFlag
+ 00C3  C6 06 0018 R 01				   mov FreezingFlag, 01h
+ 00C8				NoFreezingFlag:		   
+ 00C8  C3					   Ret
+ 00C9				ButtonsInput ENDP 
+
+
+ 00C9				ContactBounceSupressing PROC 
+ 00C9  8A E0			VD1:       mov   ah,al       ;Сохранение исходного состояния
+ 00CB  B7 00			           mov   bh,0        ;Сброс счётчика повторений
+ 00CD  EC			VD2:       in    al,dx       ;Ввод текущего состояния
+ 00CE  F6 D0					   not al
+ 00D0  38 C4			           cmp   ah,al       ;Текущее состояние=исходному?
+ 00D2  75 F5			           jne   VD1         ;Переход, если нет
+ 00D4  FE C7			           inc   bh          ;Инкремент счётчика повторений
+ 00D6  80 FF 32			           cmp   bh,NMax     ;Конец дребезга?
+ 00D9  75 F2			           jne   VD2         ;Переход, если нет
+ 00DB  8A C4			           mov   al,ah       ;Восстановление местоположения данных
+ 00DD  C3					   Ret
+ 00DE				ContactBounceSupressing ENDP
+
+
+ 00DE				IncDecButtonsInput PROC
+ 00DE  BA 00FC					   mov dx, IncDecButtonPort
+ 00E1  EC					   in al, dx
+ 00E2  F6 D0					   not al
+ 00E4  3A 06 002D R				   cmp al, OldIncDecButtonsImage
+ 00E8  0F 84 00A2				   je NoPressedButton
+ 00EC  A2 002D R				   mov OldIncDecButtonsImage, al
+ 00EF  3C 00					   cmp al, 0h
+ 00F1  0F 84 0099				   je NoPressedButton
+ 00F5  E8 FFD1					   call ContactBounceSupressing
+						   
+ 00F8  A8 01					   test al, 1h								;проверка верхнего предела для холодильной камеры
+ 00FA  74 22					   jz NoPress1
+ 00FC  8D 36 0009 R				   lea si, SelectedTemperatureFridge
+ 0100  8A 64 01					   mov ah, [si+1]
+ 0103  80 FC 01					   cmp ah, 1h
+ 0106  75 07					   jne notMax1
+ 0108  8A 24					   mov ah, [si]
+ 010A  80 FC 02					   cmp ah, 2h
+ 010D  74 7F					   je NoPressedButton
+ 010F  8A 64 01			NotMax1:   mov ah, [si+1]
+ 0112  8A 04					   mov al, [si]
+ 0114  FE C0					   inc al
+ 0116  37					   AAA
+ 0117  88 64 01					   mov [si+1], ah
+ 011A  88 04					   mov [si], al
+ 011C  EB 70					   jmp NoPressedButton
+						   
+ 011E  A8 02			NoPress1:  test al, 2h								;проверка нижнего предела для холодильной камеры
+ 0120  74 22					   jz NoPress2
+ 0122  8D 36 0009 R				   lea si, SelectedTemperatureFridge
+ 0126  8A 64 01					   mov ah, [si+1]
+ 0129  80 FC 00					   cmp ah, 0h
+ 012C  75 07					   jne notMax2
+ 012E  8A 24					   mov ah, [si]
+ 0130  80 FC 00					   cmp ah, 0h
+ 0133  74 59					   je NoPressedButton
+ 0135  8A 64 01			NotMax2:   mov ah, [si+1]
+ 0138  8A 04					   mov al, [si]
+ 013A  FE C8					   dec al
+ 013C  3F					   AAS
+ 013D  88 64 01					   mov [si+1], ah
+ 0140  88 04					   mov [si], al
+ 0142  EB 4A					   jmp NoPressedButton
+						   
+ 0144  A8 04			NoPress2:  test al, 4h								;проверка верхнего предела для морозильной камеры
+ 0146  74 22					   jz NoPress3
+ 0148  8D 36 0014 R				   lea si, SelectedTemperatureFreezer
+ 014C  8A 64 01					   mov ah, [si+1]
+ 014F  80 FC 01					   cmp ah, 1h
+ 0152  75 07					   jne notMax3
+ 0154  8A 24					   mov ah, [si]
+ 0156  80 FC 00					   cmp ah, 0h
+ 0159  74 33					   je NoPressedButton
+ 015B  8A 64 01			NotMax3:   mov ah, [si+1]
+ 015E  8A 04					   mov al, [si]
+ 0160  FE C8					   dec al
+ 0162  3F					   AAS
+ 0163  88 64 01					   mov [si+1], ah
+ 0166  88 04					   mov [si], al
+ 0168  EB 24					   jmp NoPressedButton
+						   
+ 016A  A8 08			NoPress3:  test al, 8h									;проверка нижнего предела для холодильной камеры
+ 016C  74 20					   jz NoPressedButton
+ 016E  8D 36 0014 R				   lea si, SelectedTemperatureFreezer
+ 0172  8A 64 01					   mov ah, [si+1]
+ 0175  80 FC 02					   cmp ah, 2h
+ 0178  75 07					   jne notMax4
+ 017A  8A 24					   mov ah, [si]
+ 017C  80 FC 05					   cmp ah, 5h
+ 017F  74 0D					   je NoPressedButton
+ 0181  8A 64 01			NotMax4:   mov ah, [si+1]
+ 0184  8A 04					   mov al, [si]
+ 0186  FE C0					   inc al
+ 0188  37					   AAA
+ 0189  88 64 01					   mov [si+1], ah
+ 018C  88 04					   mov [si], al
+ 018E				NoPressedButton:
+						    
+ 018E  C3					   Ret
+ 018F				IncDecButtonsInput ENDP
+
+
+ 018F				AdcProcessing  PROC									;подпрограмма для эмуляции среды, замена реальным датчикам
+ 018F  E6 F7			           out ADC_OutPort, al						;передаются: маска для выделения бита готовности с Ready порта (bl)
+ 0191  E4 FE			SCtrl1:    in al, ADC_InPort						;			 маска для считывания сигнала Start (al)
+ 0193  84 C3			           test al, bl								;			 адрес для записи значений (dx)
+ 0195  74 FA			           jz SCtrl1								; 			 адрес порта для передачи данных (di)
+ 0197  32 C0					   xor al,al		
+ 0199  E6 F7			           out ADC_OutPort, al
+ 019B  EC			           in al, dx
+ 019C  F6 D0			           not al
+ 019E  C0 E8 00			           shr al, 0
+ 01A1  3C 00			           cmp al, 0
+ 01A3  75 02			           jnz AllNotZero 
+ 01A5  FE C0					   inc al          
+ 01A7				AllNotZero:
+ 01A7  C3			           Ret
+
+ 01A8				AdcProcessing  ENDP
+
+
+ 01A8				ADCController PROC									;т.к. 2 АЦП, то это подпрограмма для передачи параметров в подпрограмму для работы с АЦП
+ 01A8  B0 02					   mov al, 00000010b						;передаваемые параметры описаны выше
+ 01AA  8D 3E 0000 R				   lea di, TemperatureFridge
+ 01AE  BA 00F7					   mov dx, ADCOutPort1
+ 01B1  B3 40					   mov bl, 40h
+ 01B3  E8 FFD9					   call AdcProcessing
+ 01B6  F6 D0					   not al									;инвертирование результата для холодильника, т.к. температрура положительная
+ 01B8  88 05					   mov [di], al
+ 01BA  B0 04					   mov al, 00000100b
+ 01BC  8D 3E 000B R				   lea di, TemperatureFreezer
+ 01C0  B3 80					   mov bl, 80h
+ 01C2  BA 00FD					   mov dx, ADCOutPort2
+ 01C5  E8 FFC7					   call AdcProcessing
+ 01C8  88 05					   mov [di], al								;отсутствие инверсии для морозильника, т.к. отрицательная
+ 01CA  C3					   Ret
+ 01CB				ADCController ENDP
+
+
+ 01CB				BinaryToBCD PROC NEAR								;подпрограмма для преобразования двичного кода в BCD код по алгоритму Горнера
+ 01CB  B9 0008					   MOV CX, 8								;передаются: адрес байта данных температуры в двоином коде (bl)
+ 01CE  8B FE			M2: 	   mov DI, si								;			 адрес ячеек куда запишется результат (si)
+ 01D0  D0 E3					   SHL BL, 1								;! Преобразованные данные в упакованном формате 
+ 01D2  51					   PUSH CX
+ 01D3  B9 0003					   MOV CX, 3
+ 01D6  8A 05					   M1: MOV AL, [DI]
+ 01D8  12 05					   ADC AL, [DI]
+ 01DA  27					   DAA
+ 01DB  88 05					   MOV [DI], AL
+ 01DD  47					   INC DI
+ 01DE  E2 F6					   LOOP M1
+ 01E0  59					   POP CX
+ 01E1  E2 EB					   LOOP M2
+ 01E3  C3					   Ret
+ 01E4				BinaryToBCD ENDP
+					
+					
+ 01E4				BinaryToBCDController PROC							;как и в случае с АЦП, программа для передачи адресов для 2 разных значений
+ 01E4  8A 1E 0000 R				   mov BL, TemperatureFridge
+ 01E8  8D 36 0001 R				   lea si, TemperatureFridgeBCD
+ 01EC  E8 FFDC					   call BinaryToBCD
+ 01EF  8A 1E 000B R				   mov BL, TemperatureFreezer
+ 01F3  8D 36 000C R				   lea si, TemperatureFreezerBCD
+ 01F7  E8 FFD1					   call BinaryToBCD
+ 01FA  C3					   Ret
+ 01FB				BinaryToBCDController ENDP
+
+
+ 01FB				UnpackingResult PROC								;т.к. BCD результат у нас запакованный, то распаковываем его
+ 01FB  8A 04					   mov al, [si]								;передается: адрес запакованного результата (si)
+ 01FD  24 F0					   and al, 11110000b
+ 01FF  8A E0					   mov ah, al
+ 0201  C0 EC 04					   shr ah, 4
+ 0204  8A 04					   mov al, [si]
+ 0206  24 0F					   and al, 00001111b
+ 0208  8A 5C 01					   mov bl, [si+1]
+ 020B  88 04					   mov [si], al
+ 020D  88 64 01					   mov [si+1], ah
+ 0210  88 5C 02					   mov [si+2], bl
+ 0213  C3					   Ret
+ 0214				UnpackingResult ENDP
+
+
+ 0214				UnpackingResultCOntroller PROC						;как и до этого - контроллер для подпрограмм, передаваеммые параметры описаны ранее
+ 0214  8D 36 0001 R				   lea si, TemperatureFridgeBCD
+ 0218  E8 FFE0					   call UnpackingResult
+ 021B  8D 36 000C R				   lea si, TemperatureFreezerBCD
+ 021F  E8 FFD9					   call UnpackingResult
+ 0222  C3					   Ret
+ 0223				UnpackingResultCOntroller ENDP
+
+
+ 0223				SensorTempOut PROC									;подпрограмма для динамического выведения температуры на индикаторы 
+ 0223  8D 1E 0023 R		           lea bx, DataHexTabl
+ 0227  B0 FF					   mov al, 0FFh
+ 0229  E6 FB					   out DisplaySensorOutPowerPort, al	   
+ 022B  3E: 8A 46 02		           mov al, byte ptr ds:[bp+2]
+ 022F  D7			           xlat	
+ 0230  E6 FD			           out DisplaySensorOutPort, al 
+ 0232  8A D0					   mov dl, al
+ 0234  8A C4					   mov al, ah        		   
+ 0236  E6 FB			           out DisplaySensorOutPowerPort, al        
+ 0238  B0 FF			           mov al, 0FFh            
+ 023A  E6 FB			           out DisplaySensorOutPowerPort, al
+ 023C  D0 C4					   rol ah, 1
+						   
+ 023E  3E: 8A 46 01				   mov al, byte ptr ds:[bp+1]                                   
+ 0242  D7			           xlat	
+ 0243  0C 80					   or al, 10000000b
+ 0245  E6 FD			           out DisplaySensorOutPort, al 
+ 0247  8A D0					   mov dl, al
+ 0249  8A C4					   mov al, ah            
+ 024B  E6 FB			           out DisplaySensorOutPowerPort, al        
+ 024D  B0 FF			           mov al, 0FFh            
+ 024F  E6 FB			           out DisplaySensorOutPowerPort, al
+ 0251  D0 C4					   rol ah, 1 
+						   
+ 0253  3E: 8A 46 00				   mov al, byte ptr ds:[bp]                                     
+ 0257  D7			           xlat	
+ 0258  E6 FD			           out DisplaySensorOutPort, al 
+ 025A  8A D0					   mov dl, al
+ 025C  8A C4					   mov al, ah            
+ 025E  E6 FB			           out DisplaySensorOutPowerPort, al        
+ 0260  B0 FF			           mov al, 0FFh            
+ 0262  E6 FB			           out DisplaySensorOutPowerPort, al
+ 0264  D0 C4					   rol ah, 1    
+ 0266  C3			           Ret
+ 0267				SensorTempOut ENDP
+
+
+ 0267				SensorTempOutControler PROC
+ 0267  B4 FE					   mov ah, 11111110b;00000001b
+ 0269  8D 2E 0001 R				   lea bp, TemperatureFridgeBCD		   
+ 026D  E8 FFB3					   call SensorTempOut
+ 0270  8D 2E 000C R				   lea bp, TemperatureFreezerBCD
+ 0274  E8 FFAC					   call SensorTempOut
+						   
+ 0277  B0 FF					   mov al, 0FFh 
+ 0279  E6 FC					   out DisplayOutPowerPort, al
+ 027B  B0 40					   mov al, 01000000b						;кусок для вывода минуса
+ 027D  E6 FD					   out DisplaySensorOutPort, al
+ 027F  E6 FE					   out DisplayOutPort, al
+ 0281  B0 7F					   mov al, 01111111b
+ 0283  E6 FB					   out DisplaySensorOutPowerPort, al
+ 0285  B0 FF					   mov al, 0FFh            
+ 0287  E6 FB			           out DisplaySensorOutPowerPort, al
+ 0289  E6 FC					   out DisplayOutPowerPort, al
+ 028B  C3					   Ret
+ 028C				SensorTempOutControler ENDP
+
+
+ 028C				IndicatorTempOut PROC									;подпрограмма для динамического выведения температуры на индикаторы 
+ 028C  8D 1E 0023 R		           lea bx, DataHexTabl
+ 0290  B0 FF					   mov al, 0FFh
+ 0292  E6 FC					   out DisplayOutPowerPort, al	   
+ 0294  3E: 8A 46 01		           mov al, byte ptr ds:[bp+1]
+ 0298  D7			           xlat	
+ 0299  E6 FE			           out DisplayOutPort, al 
+ 029B  8A D0					   mov dl, al
+ 029D  8A C4					   mov al, ah        		   
+ 029F  E6 FC			           out DisplayOutPowerPort, al        
+ 02A1  B0 FF			           mov al, 0FFh            
+ 02A3  E6 FC			           out DisplayOutPowerPort, al
+ 02A5  D0 C4					   rol ah, 1
+
+ 02A7  3E: 8A 46 00				   mov al, byte ptr ds:[bp]                                     
+ 02AB  D7			           xlat	
+ 02AC  E6 FE			           out DisplayOutPort, al 
+ 02AE  8A D0					   mov dl, al
+ 02B0  8A C4					   mov al, ah            
+ 02B2  E6 FC			           out DisplayOutPowerPort, al        
+ 02B4  B0 FF			           mov al, 0FFh            
+ 02B6  E6 FC			           out DisplayOutPowerPort, al
+ 02B8  D0 C4					   rol ah, 1    
+ 02BA  C3			           Ret
+ 02BB				IndicatorTempOut ENDP
+
+
+ 02BB				IndicatorTempOutControler PROC
+ 02BB  B4 FE					   mov ah, 11111110b;00000001b
+ 02BD  8D 2E 0009 R				   lea bp, SelectedTemperatureFridge   
+ 02C1  E8 FFC8					   call IndicatorTempOut
+ 02C4  8D 2E 0014 R				   lea bp, SelectedTemperatureFreezer
+ 02C8  E8 FFC1					   call IndicatorTempOut
+ 02CB  C3					   Ret
+ 02CC				IndicatorTempOutControler ENDP
+
+
+ 02CC				ToZero Proc 										;подпрограмма для очистки ячеек памяти для корректной цикличной работы подпрограммы преобразования данных
+						   
+ 02CC  8D 36 0004 R				   lea si, TemperatureFridgeBCD_Old
+ 02D0  8D 3E 0001 R				   lea di, TemperatureFridgeBCD
+ 02D4  8A 05					   mov al, [di]
+ 02D6  8A 65 01					   mov ah, [di+1]
+ 02D9  8A 7D 02					   mov bh, [di+2]
+ 02DC  A2 0004 R				   mov TemperatureFridgeBCD_Old, al
+ 02DF  88 26 0005 R				   mov TemperatureFridgeBCD_Old+1, ah
+ 02E3  88 3E 0006 R				   mov TemperatureFridgeBCD_Old+2, bh
+ 02E7  8D 36 000F R				   lea si, TemperatureFreezerBCD_Old
+ 02EB  8D 3E 000C R				   lea di, TemperatureFreezerBCD
+ 02EF  8A 05					   mov al, [di]
+ 02F1  8A 65 01					   mov ah, [di+1]
+ 02F4  8A 7D 02					   mov bh, [di+2]
+ 02F7  A2 000F R				   mov TemperatureFreezerBCD_Old, al
+ 02FA  88 26 0010 R				   mov TemperatureFreezerBCD_Old+1, ah
+ 02FE  88 3E 0011 R				   mov TemperatureFreezerBCD_Old+2, bh
+ 0302  B4 00					   mov ah, 0
+ 0304  88 26 000C R				   mov TemperatureFreezerBCD, ah
+ 0308  88 26 000D R				   mov TemperatureFreezerBCD+1, ah
+ 030C  88 26 000E R				   mov TemperatureFreezerBCD+2, ah
+ 0310  88 26 0001 R				   mov TemperatureFridgeBCD, ah
+ 0314  88 26 0002 R				   mov TemperatureFridgeBCD+1, ah
+ 0318  88 26 0003 R				   mov TemperatureFridgeBCD+2, ah
+ 031C  88 26 0017 R				   mov DoorFreezerOpenFlag, ah
+ 0320  88 26 0016 R				   mov DoorFridgeOpenFlag, ah
+ 0324  88 26 0018 R				   mov FreezingFlag, ah
+ 0328  C3					   Ret
+ 0329				ToZEro ENDP   
+
+
+ 0329				FreezingFridge PROC
+ 0329  8A 04					   mov al, [si]
+ 032B  8A 64 01					   mov ah, [si+1]
+ 032E  8A 5D 01					   mov bl, [di+1]
+ 0331  8A 7D 02					   mov bh, [di+2]
+ 0334  F6 06 002E R 01				   test WaitModeFridge, 01h
+ 0339  74 06					   jz WaitMode 
+ 033B  3B C3					   cmp ax, bx
+ 033D  73 21					   jae NoFreezing
+ 033F  EB 04					   jmp next
+ 0341				WaitMode:  
+ 0341  3B C3					   cmp ax, bx
+ 0343  77 1B					   ja NoFreezing		   
+ 0345  03 EA			next:	   add bp, dx
+						   
+ 0347  B0 00					   mov al, 0
+ 0349  8A 24					   mov ah, [si]
+ 034B  8A 1D					   mov bl, [di]
+ 034D  8A 7D 01					   mov bh, [di+1]
+ 0350  3B C3					   cmp ax, bx
+ 0352  75 07					   jne WaitMOdeOF
+ 0354  C6 06 002E R 01				   mov WaitModeFridge, 01h
+ 0359  EB 05					   Jmp NoFreezing
+ 035B  C6 06 002E R 00		WaitMOdeOF:mov WaitModeFridge, 00h		   
+ 0360  C3			NoFreezing:Ret
+ 0361				FreezingFridge ENDP
+
+ 0361				FreezingFreezer PROC
+ 0361  8A 04					   mov al, [si]
+ 0363  8A 64 01					   mov ah, [si+1]
+ 0366  8A 5D 01					   mov bl, [di+1]
+ 0369  8A 7D 02					   mov bh, [di+2]
+ 036C  FE C8					   dec al
+ 036E  3F					   aas
+ 036F  A3 0030 R				   mov TempretureFreezerOn,ax
+ 0372  F6 06 002F R 01				   test WaitModeFreezer, 01h	   
+ 0377  75 06					   jnz toTest	   
+ 0379  3B C3					   cmp ax, bx
+ 037B  7C 02					   jl toTest
+ 037D  03 EA					   add bp, dx 
+ 037F				toTest:		   
+ 037F  8A 04					   mov al, [si]
+ 0381  8A 64 01					   mov ah, [si+1]
+ 0384  8A 5D 01					   mov bl, [di+1]
+ 0387  8A 7D 02					   mov bh, [di+2]
+ 038A  2B C3					   sub ax, bx
+ 038C  77 05					   Ja Next
+ 038E  C6 06 002F R 01				   mov WaitModeFreezer, 01h
+ 0393				Next:	   
+ 0393  8A 45 01					   mov al, [di+1]
+ 0396  8A 65 02					   mov ah, [di+2]
+ 0399  8B 1E 0030 R				   mov bx, TempretureFreezerOn
+ 039D  3B C3					   cmp ax, bx
+ 039F  7D 05					   jge Exit
+ 03A1  C6 06 002F R 00				   mov WaitModeFreezer, 00h    
+ 03A6  C3			Exit:	   Ret
+ 03A7				FreezingFreezer ENDP
+
+
+ 03A7				FreezingCOntroller PROC
+ 03A7  B0 00					   mov al, 0h
+ 03A9  BD 0000					   mov bp, 0h
+ 03AC  A0 0018 R				   mov al, FreezingFlag
+ 03AF  A8 01					   test al, 01h
+ 03B1  75 45					   jnz NotFreez
+ 03B3  A0 0034 R				   mov al, RepairFlag
+ 03B6  A8 01					   test al, 01h
+ 03B8  75 3E					   jnz NotFreez
+ 03BA  8D 36 0009 R				   lea si, SelectedTemperatureFridge
+ 03BE  8D 3E 0001 R				   lea di, TemperatureFridgeBCD
+ 03C2  BA 0001					   mov dx, 1h
+ 03C5  E8 FF61					   call FreezingFridge
+ 03C8  8D 36 0014 R				   lea si, SelectedTemperatureFreezer
+ 03CC  8D 3E 000C R				   lea di, TemperatureFreezerBCD
+ 03D0  BA 0002					   mov dx, 2h
+ 03D3  E8 FF8B					   call FreezingFreezer
+ 03D6  8B C5					   mov ax, bp
+ 03D8  A8 01					   test al, 01h
+ 03DA  74 07					   jz NoFridgeCompressor
+ 03DC  C6 06 0032 R 01				   mov FridgeCompressor, 01h
+ 03E1  EB 05					   jmp next1
+ 03E3				NoFridgeCompressor:
+ 03E3  C6 06 0032 R 00				   mov FridgeCompressor, 00h
+ 03E8  A8 02			next1:	   test al, 02h
+ 03EA  74 07					   jz NoFreezerCompressor
+ 03EC  C6 06 0033 R 02				   mov FreezerCompressor, 02h
+ 03F1  EB 05					   jmp next2
+ 03F3				NoFreezerCompressor:
+ 03F3  C6 06 0033 R 00				   mov FreezerCompressor, 00h
+ 03F8				next2:	 
+ 03F8  C3			NotFreez:  Ret
+ 03F9				FreezingCOntroller ENDP
+
+
+ 03F9				RepairModeFridge PROC 
+ 03F9  A0 0016 R				   mov al, DoorFridgeOpenFlag
+ 03FC  A8 01					   test al, 01h
+ 03FE  75 07					   jnz NoDoorOpen
+ 0400  A0 0018 R				   mov al, FreezingFlag
+ 0403  A8 01					   test al, 01h
+ 0405  74 26					   jz Exit
+ 0407				NoDoorOpen:
+ 0407  C6 06 0004 R 00				   mov TemperatureFridgeBCD_Old, 0
+ 040C  C6 06 0005 R 07				   mov TemperatureFridgeBCD_Old+1, 7
+ 0411  C6 06 0006 R 02				   mov TemperatureFridgeBCD_Old+2, 2 
+ 0416  8D 36 0001 R				   lea si, TemperatureFridgeBCD
+ 041A  8A 64 02					   mov ah, [si+2]
+ 041D  8A 44 01					   mov al, [si+1]
+ 0420  FE C0					   inc al
+ 0422  37					   aaa
+ 0423  A2 0007 R				   mov TemperatureFridgeBCD_Repair, al
+ 0426  88 26 0008 R				   mov TemperatureFridgeBCD_Repair+1, ah
+ 042A  E9 008D					   jmp ToEnd
+						   
+ 042D  8D 36 0004 R		Exit:	   lea si, TemperatureFridgeBCD_Old			;
+ 0431  8D 3E 0001 R				   lea di, TemperatureFridgeBCD				;
+ 0435  8A 44 02					   mov al, [si+2]
+ 0438  8A 5D 02					   mov bl, [di+2]
+ 043B  38 D8					   cmp al, bl
+ 043D  7C 3E					   jl next
+ 043F  8A 04					   mov al, [si]								;
+ 0441  8A 64 01					   mov ah, [si+1]							;
+ 0444  8A 1D					   mov bl, [di]								;
+ 0446  8A 7D 01					   mov bh, [di+1]							;
+ 0449  3B C3					   cmp ax, bx								;переход если текущее значение больше предыдущего
+ 044B  7E 30					   jle next									;переход если предыдущее значение меньше текущего
+ 044D  8D 36 0001 R				   lea si, TemperatureFridgeBCD					;
+ 0451  8D 3E 0007 R				   lea di, TemperatureFridgeBCD_Repair			;
+ 0455  8A 44 01		   mov al, [si+1]								;
+ 0458  8A 64 02					   mov ah, [si+2]								;
+ 045B  FE C0					   inc al										;модификация значения починки
+ 045D  37					   aaa											;
+ 045E  8A 3E 000A R				   mov bh, SelectedTemperatureFridge+1			;
+ 0462  8A 1E 0009 R				   mov bl, SelectedTemperatureFridge			;
+ 0466  93					   xchg ax,bx									;
+ 0467  FE C0					   inc al										;
+ 0469  FE C0					   inc al										;
+ 046B  37					   aaa											;
+ 046C  93					   xchg	ax, bx	   								;
+ 046D  3B D8					   cmp bx, ax									;
+ 046F  7F 07					   jg NotPossible								;
+ 0471  88 05					   mov [di], al									;
+ 0473  88 65 01					   mov [di+1], ah								;
+ 0476  EB 05					   jmp next		   							;
+ 0478				NotPossible:											;
+ 0478  88 1D					   mov [di], bl									;
+ 047A  88 7D 01					   mov [di+1], bh								;
+ 047D				next:		
+ 047D  8D 36 0009 R				   lea si, SelectedTemperatureFridge
+ 0481  8D 3E 0007 R				   lea di, TemperatureFridgeBCD_Repair
+ 0485  8A 04					   mov al, [si]
+ 0487  8A 64 01					   mov ah, [si+1]
+ 048A  FE C0					   inc al
+ 048C  FE C0					   inc al
+ 048E  37					   aaa
+ 048F  8A 1D					   mov bl, [di]
+ 0491  8A 7D 01					   mov bh, [di+1]
+ 0494  3B C3					   cmp ax, bx
+ 0496  7E 07					   jle next1
+ 0498  A2 0007 R				   mov TemperatureFridgeBCD_Repair, al
+ 049B  88 26 0008 R				   mov TemperatureFridgeBCD_Repair+1, ah
+						   
+ 049F  8D 36 0001 R		next1:	   lea si, TemperatureFridgeBCD				;
+ 04A3  8D 3E 0007 R				   lea di, TemperatureFridgeBCD_Repair		;
+ 04A7  8A 44 01					   mov al, [si+1]							;
+ 04AA  8A 64 02					   mov ah, [si+2]							;сравнение значения починки и текущей температуры
+ 04AD  8A 1D					   mov bl, [di]								;
+ 04AF  8A 7D 01					   mov bh, [di+1]							;
+ 04B2  3B C3					   cmp ax, bx								;
+ 04B4  7C 04					   jl NoCorrectionNeeded					;переход если текущее значение меньше значения починки
+ 04B6  81 CD 0080				   or bp, 80h
+
+ 04BA				NoCorrectionNeeded:
+				;		   lea si, TemperatureFridgeBCD_Old
+				;		   lea di, TemperatureFridgeBCD
+				;		   mov al, [di]
+				;		   mov ah, [di+1]
+				;		   mov bh, [di+2]
+				;		   mov TemperatureFridgeBCD_Old, al
+				;		   mov TemperatureFridgeBCD_Old+1, ah
+				;		   mov TemperatureFridgeBCD_Old+2, bh
+ 04BA  C3			ToEnd:	   Ret
+ 04BB				RepairModeFridge ENDP
+
+
+ 04BB				RepairModeFreezer PROC 
+ 04BB  A0 0017 R				   mov al, DoorFreezerOpenFlag
+ 04BE  A8 01					   test al, 01h
+ 04C0  75 07					   jnz NoDoorOpen
+ 04C2  A0 0018 R				   mov al, FreezingFlag
+ 04C5  A8 01					   test al, 01h
+ 04C7  74 28					   jz Exit
+ 04C9				NoDoorOpen:
+ 04C9  C6 06 000F R 00				   mov TemperatureFreezerBCD_Old, 0
+ 04CE  C6 06 0010 R 00				   mov TemperatureFreezerBCD_Old+1, 0
+ 04D3  C6 06 0011 R 00				   mov TemperatureFreezerBCD_Old+2, 0 
+ 04D8  8D 36 000C R				   lea si, TemperatureFreezerBCD
+ 04DC  8A 64 02					   mov ah, [si+2]
+ 04DF  8A 44 01					   mov al, [si+1]
+ 04E2  FE C8					   dec al
+ 04E4  FE C8					   dec al
+ 04E6  3F					   aas
+ 04E7  A2 0012 R				   mov TemperatureFreezerBCD_Repair, al
+ 04EA  88 26 0013 R				   mov TemperatureFreezerBCD_Repair+1, ah
+ 04EE  E9 0092					   jmp ToEnd
+ 04F1  8D 36 000F R		Exit:	   lea si, TemperatureFreezerBCD_Old
+ 04F5  8D 3E 000C R				   lea di, TemperatureFreezerBCD
+ 04F9  8A 44 02					   mov al, [si+2]
+ 04FC  8A 5D 02					   mov bl, [di+2]
+ 04FF  38 D8					   cmp al, bl
+ 0501  7F 42					   jg next
+ 0503  8A 04					   mov al, [si]								;
+ 0505  8A 64 01					   mov ah, [si+1]							;
+ 0508  8A 1D					   mov bl, [di]								;
+ 050A  8A 7D 01					   mov bh, [di+1]							;
+ 050D  3B C3					   cmp ax, bx								;переход если текущее значение больше предыдущего
+ 050F  7D 34					   jge next									;переход если предыдущее значение меньше текущего
+ 0511  8D 36 000C R				   lea si, TemperatureFreezerBCD					;
+ 0515  8D 3E 0012 R				   lea di, TemperatureFreezerBCD_Repair			;
+ 0519  8A 44 01					   mov al, [si+1]								;
+ 051C  8A 64 02					   mov ah, [si+2]								;
+ 051F  FE C8					   dec al	
+ 0521  FE C8					   dec al		   ;модификация значения починки
+ 0523  3F					   aas											;
+ 0524  8A 3E 0015 R				   mov bh, SelectedTemperatureFreezer+1			;
+ 0528  8A 1E 0014 R				   mov bl, SelectedTemperatureFreezer			;
+ 052C  93					   xchg ax,bx									;
+ 052D  FE C8					   dec al										;
+ 052F  FE C8					   dec al										;
+ 0531  FE C8					   dec al										;
+ 0533  3F					   aas											;
+ 0534  93					   xchg	ax, bx	   								;
+ 0535  3B D8					   cmp bx, ax									;
+ 0537  7C 07					   jl NotPossible								;
+ 0539  88 05					   mov [di], al									;
+ 053B  88 65 01					   mov [di+1], ah								;
+ 053E  EB 05					   jmp next		   								;
+ 0540				NotPossible:											;
+ 0540  88 1D					   mov [di], bl									;
+ 0542  88 7D 01					   mov [di+1], bh								;
+ 0545				next:		
+ 0545  8D 36 0014 R				   lea si, SelectedTemperatureFreezer
+ 0549  8D 3E 0012 R				   lea di, TemperatureFreezerBCD_Repair
+ 054D  8A 04					   mov al, [si]
+ 054F  8A 64 01					   mov ah, [si+1]
+ 0552  FE C0					   inc al
+ 0554  FE C0					   inc al
+ 0556  FE C0					   inc al
+ 0558  37					   aaa
+ 0559  8A 1D					   mov bl, [di]
+ 055B  8A 7D 01					   mov bh, [di+1]
+ 055E  3B C3					   cmp ax, bx
+ 0560  7D 07					   jge next1
+ 0562  A2 0012 R				   mov TemperatureFreezerBCD_Repair, al
+ 0565  88 26 0013 R				   mov TemperatureFreezerBCD_Repair+1, ah
+						   
+ 0569  8D 36 000C R		next1:	   lea si, TemperatureFreezerBCD				;
+ 056D  8D 3E 0012 R				   lea di, TemperatureFreezerBCD_Repair		;
+ 0571  8A 44 01					   mov al, [si+1]							;
+ 0574  8A 64 02					   mov ah, [si+2]							;сравнение значения починки и текущей температуры
+ 0577  8A 1D					   mov bl, [di]								;
+ 0579  8A 7D 01					   mov bh, [di+1]							;
+ 057C  3B C3					   cmp ax, bx								;
+ 057E  7F 03					   jg NoCorrectionNeeded					;переход если текущее значение меньше значения починки
+ 0580  83 CD 40					   or bp, 40h
+
+ 0583				NoCorrectionNeeded:
+				;		   lea si, TemperatureFreezerBCD_Old
+				;		   lea di, TemperatureFreezerBCD
+				;		   mov al, [di]
+				;		   mov ah, [di+1]
+				;		   mov bh, [di+2]
+				;		   mov TemperatureFreezerBCD_Old, al
+				;		   mov TemperatureFreezerBCD_Old+1, ah
+				;		   mov TemperatureFreezerBCD_Old+2, bh
+ 0583  C3			ToEnd:	   Ret
+ 0584				RepairModeFreezer ENDP
+
+
+ 0584				RepairModeController PROC
+ 0584  BD 0000					   mov bp, 0h
+ 0587  E8 FE6F					   call RepairModeFridge
+ 058A  E8 FF2E					   call RepairModeFreezer
+ 058D  A0 0018 R				   mov al, FreezingFlag
+ 0590  A8 01					   test al, 01h
+ 0592  B0 00					   mov al, 0h
+ 0594  75 29					   jnz Exit
+						   
+ 0596  B0 00					   mov al, 0h
+ 0598  0B C5					   or ax, bp
+						   
+ 059A  F7 C5 0080				   test bp, 80h
+ 059E  75 0D					   jnz noFridgeCompressor
+ 05A0  8A 1E 0016 R				   mov bl, DoorFridgeOpenFlag
+ 05A4  F6 C3 01					   test bl, 01h
+ 05A7  75 04					   jnz noFridgeCompressor
+ 05A9  0A 06 0032 R				   or al, FridgeCompressor
+ 05AD				noFridgeCompressor:
+						   
+ 05AD  A9 0040					   test ax, 40h
+ 05B0  75 0D					   jnz noFreezerCompressor
+ 05B2  8A 1E 0017 R				   mov bl, DoorFreezerOpenFlag
+ 05B6  F6 C3 01					   test bl, 01h
+ 05B9  75 04					   jnz noFreezerCompressor
+ 05BB  0A 06 0033 R				   or al, FreezerCompressor
+ 05BF				noFreezerCompressor:
+ 05BF				Exit:
+ 05BF  8B E8					   mov bp, ax
+ 05C1  C3					   Ret
+ 05C2				RepairModeController ENDP
+
+ 05C2				TimerRepairFridge PROC
+ 05C2  A0 0001 R				   mov al, TemperatureFridgeBCD
+ 05C5  8A 26 0002 R				   mov ah, TemperatureFridgeBCD+1
+ 05C9  8A 1E 0004 R				   mov bl, TemperatureFridgeBCD_Old
+ 05CD  8A 3E 0005 R				   mov bh, TemperatureFridgeBCD_Old+1
+ 05D1  3B C3					   cmp ax, bx
+ 05D3  75 38					   jne RepairFridgeCounter
+ 05D5  A0 0003 R				   mov al, TemperatureFridgeBCD+2
+ 05D8  8A 1E 0006 R				   mov bl, TemperatureFridgeBCD_Old+2
+ 05DC  38 D8					   cmp al, bl 
+ 05DE  75 2D					   jne RepairFridgeCounter
+						   
+ 05E0  F7 C5 0080				   test bp, 0080h
+ 05E4  75 48					   jnz Exit
+ 05E6  F7 C5 0001				   test bp, 0001h
+ 05EA  74 42					   jz Exit
+ 05EC  F6 06 003D R 01				   test TimeOutFlagFridge, 01h
+ 05F1  75 2E					   jnz TimeOut
+						   
+ 05F3  A1 0035 R				   mov ax, TimerFridge
+ 05F6  48					   dec ax
+ 05F7  A3 0035 R				   mov TimerFridge, ax
+ 05FA  83 F8 00					   cmp ax, 0h
+ 05FD  75 2F					   jne Exit
+ 05FF  A1 0037 R				   mov ax, TimerFridge+2
+ 0602  83 F8 00					   cmp ax, 0h
+ 0605  75 1A					   jne TimeOut
+ 0607  48					   dec ax
+ 0608  A3 0037 R				   mov TimerFridge+2, ax
+ 060B  EB 21					   jmp Exit
+ 060D				RepairFridgeCounter:
+ 060D  C6 06 003D R 00				   mov TimeOutFlagFridge, 00h
+ 0612  B8 0FFF					   mov ax, 00FFFh
+ 0615  BB 005F					   mov bx, 005Fh
+ 0618  A3 0035 R				   mov TimerFridge, ax
+ 061B  89 1E 0037 R				   mov TimerFridge+2, bx
+ 061F  EB 0D					   jmp Exit
+ 0621				TimeOut:
+ 0621  C6 06 003D R 01				   mov TimeOutFlagFridge, 01h
+ 0626  81 E5 00FE				   and bp, 0000000011111110b
+ 062A  81 CD 0080				   or bp, 0000000010000000b
+ 062E  C3			Exit:	   Ret
+ 062F				TimerRepairFridge ENDP
+
+ 062F				TimerRepairFreezer PROC
+ 062F  A0 000C R				   mov al, TemperatureFreezerBCD
+ 0632  8A 26 000D R				   mov ah, TemperatureFreezerBCD+1
+ 0636  8A 1E 000F R				   mov bl, TemperatureFreezerBCD_Old
+ 063A  8A 3E 0010 R				   mov bh, TemperatureFreezerBCD_Old+1
+ 063E  3B C3					   cmp ax, bx
+ 0640  75 38					   jne RepairFridgeCounter
+ 0642  A0 000E R				   mov al, TemperatureFreezerBCD+2
+ 0645  8A 1E 0011 R				   mov bl, TemperatureFreezerBCD_Old+2
+ 0649  38 D8					   cmp al, bl 
+ 064B  75 2D					   jne RepairFridgeCounter
+						   
+ 064D  F7 C5 0040				   test bp, 0040h
+ 0651  75 47					   jnz Exit
+ 0653  F7 C5 0002				   test bp, 0002h
+ 0657  74 41					   jz Exit
+ 0659  F6 06 003E R 01				   test TimeOutFlagFreezer, 01h
+ 065E  75 2E					   jnz TimeOut
+						   
+ 0660  A1 0039 R				   mov ax, TimerFreezer
+ 0663  48					   dec ax
+ 0664  A3 0039 R				   mov TimerFreezer, ax
+ 0667  83 F8 00					   cmp ax, 0h
+ 066A  75 2E					   jne Exit
+ 066C  A1 003B R				   mov ax, TimerFreezer+2
+ 066F  83 F8 00					   cmp ax, 0h
+ 0672  75 1A					   jne TimeOut
+ 0674  48					   dec ax
+ 0675  A3 003B R				   mov TimerFreezer+2, ax
+ 0678  EB 20					   jmp Exit
+ 067A				RepairFridgeCounter:
+ 067A  C6 06 003E R 00				   mov TimeOutFlagFreezer, 00h
+ 067F  B8 0FFF					   mov ax, 00FFFh
+ 0682  BB 005F					   mov bx, 005Fh
+ 0685  A3 0039 R				   mov TimerFreezer, ax
+ 0688  89 1E 003B R				   mov TimerFreezer+2, bx
+ 068C  EB 0C					   jmp Exit
+ 068E				TimeOut:
+ 068E  C6 06 003E R 01				   mov TimeOutFlagFreezer, 01h
+ 0693  81 E5 00FD				   and bp, 0000000011111101b
+ 0697  83 CD 40					   or bp, 0000000001000000b
+ 069A  C3			Exit:	   Ret
+ 069B				TimerRepairFreezer ENDP
+
+
+ 069B				TimerRepairCOntroller PROC 
+ 069B  E8 FF24					   Call TimerRepairFridge
+ 069E  E8 FF8E					   Call TimerRepairFreezer
+ 06A1  C3					   Ret
+ 06A2				TimerRepairCOntroller ENDP 
+
+
+ 06A2				LightAndModeOutput PROC								
+ 06A2  8B C5					   mov ax, bp 								
+ 06A4  F6 06 0016 R 01				   Test DoorFridgeOpenFlag, 1
+ 06A9  74 02					   jz NoDoorFridgeOpen
+ 06AB  04 08					   add al, 00001000b
+ 06AD				NoDoorFridgeOpen:
+ 06AD  F6 06 0017 R 01				   test DoorFreezerOpenFlag, 1
+ 06B2  74 02					   jz NoDoorFreezerOpen
+ 06B4  04 10					   add al, 00010000b
+ 06B6				NoDoorFreezerOpen:
+ 06B6  F6 06 0018 R 01				   test FreezingFlag, 1
+ 06BB  74 02					   jz NoFreezingFlag
+ 06BD  04 04					   add al, 00000100b
+ 06BF				NoFreezingFlag:
+ 06BF  E6 FA					   Out SensorsOutPort, al
+ 06C1  C3					   Ret
+ 06C2				LightAndModeOutput ENDP
+
+
+ 06C2				CopyArr PROC
+ 06C2  B9 000A					   MOV CX, 10 ;Загрузка счётчика циклов
+ 06C5  8D 1E 0000 R				   LEA BX, HexArr ;Загрузка адреса массива цифр
+ 06C9  8D 2E 000A R				   LEA BP, HexTabl ;Загрузка адреса таблицы преобразования
+ 06CD  8D 3E 0019 R				   LEA DI, DataHexArr ;Загрузка адреса массива цифр в сегменте данных
+ 06D1  8D 36 0023 R				   LEA SI, DataHexTabl ;Загрузка адреса таблицы преобразования в сегменте данных
+ 06D5				M0:
+ 06D5  2E: 8A 07				   MOV AL, CS:[BX] ;Чтение цифры из массива в аккумулятор
+ 06D8  88 05					   MOV [DI], AL ;Запись цифры в сегмент данных/DataHexArr
+ 06DA  43					   INC BX ;Модификация адреса HexArr
+ 06DB  47					   INC DI ;Модификация адреса DataHexArr
+ 06DC  E2 F7					   LOOP M0
+							
+ 06DE  B9 000A					   MOV CX, 10 ;Загрузка счётчика циклов
+ 06E1				M1:
+ 06E1  2E: 8A 66 00				   MOV AH, CS:[BP] ;Чтение графического образа из таблицы преобразования
+ 06E5  88 24					   MOV [SI], AH ;Запись графического образа в сегмент данных/DataHexTabl
+ 06E7  45					   INC BP ;Модификация адреса HexTabl
+ 06E8  46					   INC SI ;Модификация адреса DataHexTabl
+ 06E9  E2 F6					   LOOP M1
+ 06EB  33 ED					   XOR bp,bp
+ 06ED  C3					   ret
+ 06EE				CopyArr ENDP
+
+
+
+ 06EE				Start:
+ 06EE  B8 ---- R		           mov   ax,Data
+ 06F1  8E D8			           mov   ds,ax
+ 06F3  8E C0			           mov   es,ax
+ 06F5  B8 ---- R		           mov   ax,Stk
+ 06F8  8E D0			           mov   ss,ax
+ 06FA  8D 26 0020 R		           lea   sp,StkTop
+						   
+ 06FE  E8 F913					   call Initialization
+ 0701  E8 FFBE					   call CopyArr
+ 0704				MainLoop: 		   
+ 0704  E8 F9A2					   call ButtonsInput
+ 0707  E8 FA9E					   call ADCController
+ 070A  E8 FAD7					   call BinaryToBCDController
+ 070D  E8 FB04					   call UnpackingResultCOntroller
+ 0710  E8 F9CB					   call IncDecButtonsInput
+ 0713  E8 FBA5					   call IndicatorTempOutControler
+ 0716  E8 FB4E					   call SensorTempOutControler
+ 0719  E8 FC8B					   call FreezingCOntroller
+ 071C  E8 FE65					   call RepairModeController
+ 071F  E8 FF79					   call TimerRepairCOntroller
+ 0722  E8 FF7D					   call LightAndModeOutput
+ 0725  E8 FBA4					   call ToZero
+ 0728  EB DA					   jmp MainLoop
+				;Здесь размещается код программы
+
+
+				;В следующей строке необходимо указать смещение стартовой точки
+				           org   RomSize-16-((InitDataEnd-InitDataStart+15) AND 0FFF0h)
+				           ASSUME cs:NOTHING
+ 0FF0  EA ---- 06EE R		           jmp   Far Ptr Start
+ 0FF5				Code       ENDS
+				END		Start
+Microsoft (R) Macro Assembler Version 6.14.8444		    06/04/23 17:57:39
+ъєЁёрў.asm						     Symbols 2 - 1
+
+
+
+
+Segments and Groups:
+
+                N a m e                 Size     Length   Align   Combine Class
+
+Code . . . . . . . . . . . . . .	16 Bit	 0FF5	  Para	  Private 
+Data . . . . . . . . . . . . . .	16 Bit	 003F	  Abs	  Private 
+InitData . . . . . . . . . . . .	16 Bit	 0000	  Para	  Private 
+IntTable . . . . . . . . . . . .	16 Bit	 0000	  Abs	  Private 
+Stk  . . . . . . . . . . . . . .	16 Bit	 0020	  Abs	  Private 
+
+
+Procedures,  parameters and locals:
+
+                N a m e                 Type     Value    Attr
+
+ADCController  . . . . . . . . .	P Near	 01A8	  Code	Length= 0023 Public
+AdcProcessing  . . . . . . . . .	P Near	 018F	  Code	Length= 0019 Public
+  SCtrl1 . . . . . . . . . . . .	L Near	 0191	  Code	
+  AllNotZero . . . . . . . . . .	L Near	 01A7	  Code	
+BinaryToBCDController  . . . . .	P Near	 01E4	  Code	Length= 0017 Public
+BinaryToBCD  . . . . . . . . . .	P Near	 01CB	  Code	Length= 0019 Public
+  M2 . . . . . . . . . . . . . .	L Near	 01CE	  Code	
+  M1 . . . . . . . . . . . . . .	L Near	 01D6	  Code	
+ButtonsInput . . . . . . . . . .	P Near	 00A9	  Code	Length= 0020 Public
+  NoDoorFridgeOpen . . . . . . .	L Near	 00B6	  Code	
+  NoDoorFreezerOpen  . . . . . .	L Near	 00BF	  Code	
+  NoFreezingFlag . . . . . . . .	L Near	 00C8	  Code	
+ContactBounceSupressing  . . . .	P Near	 00C9	  Code	Length= 0015 Public
+  VD1  . . . . . . . . . . . . .	L Near	 00C9	  Code	
+  VD2  . . . . . . . . . . . . .	L Near	 00CD	  Code	
+CopyArr  . . . . . . . . . . . .	P Near	 06C2	  Code	Length= 002C Public
+  M0 . . . . . . . . . . . . . .	L Near	 06D5	  Code	
+  M1 . . . . . . . . . . . . . .	L Near	 06E1	  Code	
+FreezingCOntroller . . . . . . .	P Near	 03A7	  Code	Length= 0052 Public
+  NoFridgeCompressor . . . . . .	L Near	 03E3	  Code	
+  next1  . . . . . . . . . . . .	L Near	 03E8	  Code	
+  NoFreezerCompressor  . . . . .	L Near	 03F3	  Code	
+  next2  . . . . . . . . . . . .	L Near	 03F8	  Code	
+  NotFreez . . . . . . . . . . .	L Near	 03F8	  Code	
+FreezingFreezer  . . . . . . . .	P Near	 0361	  Code	Length= 0046 Public
+  toTest . . . . . . . . . . . .	L Near	 037F	  Code	
+  Next . . . . . . . . . . . . .	L Near	 0393	  Code	
+  Exit . . . . . . . . . . . . .	L Near	 03A6	  Code	
+FreezingFridge . . . . . . . . .	P Near	 0329	  Code	Length= 0038 Public
+  WaitMode . . . . . . . . . . .	L Near	 0341	  Code	
+  next . . . . . . . . . . . . .	L Near	 0345	  Code	
+  WaitMOdeOF . . . . . . . . . .	L Near	 035B	  Code	
+  NoFreezing . . . . . . . . . .	L Near	 0360	  Code	
+IncDecButtonsInput . . . . . . .	P Near	 00DE	  Code	Length= 00B1 Public
+  NotMax1  . . . . . . . . . . .	L Near	 010F	  Code	
+  NoPress1 . . . . . . . . . . .	L Near	 011E	  Code	
+  NotMax2  . . . . . . . . . . .	L Near	 0135	  Code	
+  NoPress2 . . . . . . . . . . .	L Near	 0144	  Code	
+  NotMax3  . . . . . . . . . . .	L Near	 015B	  Code	
+  NoPress3 . . . . . . . . . . .	L Near	 016A	  Code	
+  NotMax4  . . . . . . . . . . .	L Near	 0181	  Code	
+  NoPressedButton  . . . . . . .	L Near	 018E	  Code	
+IndicatorTempOutControler  . . .	P Near	 02BB	  Code	Length= 0011 Public
+IndicatorTempOut . . . . . . . .	P Near	 028C	  Code	Length= 002F Public
+Initialization . . . . . . . . .	P Near	 0014	  Code	Length= 0095 Public
+LightAndModeOutput . . . . . . .	P Near	 06A2	  Code	Length= 0020 Public
+  NoDoorFridgeOpen . . . . . . .	L Near	 06AD	  Code	
+  NoDoorFreezerOpen  . . . . . .	L Near	 06B6	  Code	
+  NoFreezingFlag . . . . . . . .	L Near	 06BF	  Code	
+RepairModeController . . . . . .	P Near	 0584	  Code	Length= 003E Public
+  noFridgeCompressor . . . . . .	L Near	 05AD	  Code	
+  noFreezerCompressor  . . . . .	L Near	 05BF	  Code	
+  Exit . . . . . . . . . . . . .	L Near	 05BF	  Code	
+RepairModeFreezer  . . . . . . .	P Near	 04BB	  Code	Length= 00C9 Public
+  NoDoorOpen . . . . . . . . . .	L Near	 04C9	  Code	
+  Exit . . . . . . . . . . . . .	L Near	 04F1	  Code	
+  NotPossible  . . . . . . . . .	L Near	 0540	  Code	
+  next . . . . . . . . . . . . .	L Near	 0545	  Code	
+  next1  . . . . . . . . . . . .	L Near	 0569	  Code	
+  NoCorrectionNeeded . . . . . .	L Near	 0583	  Code	
+  ToEnd  . . . . . . . . . . . .	L Near	 0583	  Code	
+RepairModeFridge . . . . . . . .	P Near	 03F9	  Code	Length= 00C2 Public
+  NoDoorOpen . . . . . . . . . .	L Near	 0407	  Code	
+  Exit . . . . . . . . . . . . .	L Near	 042D	  Code	
+  NotPossible  . . . . . . . . .	L Near	 0478	  Code	
+  next . . . . . . . . . . . . .	L Near	 047D	  Code	
+  next1  . . . . . . . . . . . .	L Near	 049F	  Code	
+  NoCorrectionNeeded . . . . . .	L Near	 04BA	  Code	
+  ToEnd  . . . . . . . . . . . .	L Near	 04BA	  Code	
+SensorTempOutControler . . . . .	P Near	 0267	  Code	Length= 0025 Public
+SensorTempOut  . . . . . . . . .	P Near	 0223	  Code	Length= 0044 Public
+TimerRepairCOntroller  . . . . .	P Near	 069B	  Code	Length= 0007 Public
+TimerRepairFreezer . . . . . . .	P Near	 062F	  Code	Length= 006C Public
+  RepairFridgeCounter  . . . . .	L Near	 067A	  Code	
+  TimeOut  . . . . . . . . . . .	L Near	 068E	  Code	
+  Exit . . . . . . . . . . . . .	L Near	 069A	  Code	
+TimerRepairFridge  . . . . . . .	P Near	 05C2	  Code	Length= 006D Public
+  RepairFridgeCounter  . . . . .	L Near	 060D	  Code	
+  TimeOut  . . . . . . . . . . .	L Near	 0621	  Code	
+  Exit . . . . . . . . . . . . .	L Near	 062E	  Code	
+ToZero . . . . . . . . . . . . .	P Near	 02CC	  Code	Length= 005D Public
+UnpackingResultCOntroller  . . .	P Near	 0214	  Code	Length= 000F Public
+UnpackingResult  . . . . . . . .	P Near	 01FB	  Code	Length= 0019 Public
+
+
+Symbols:
+
+                N a m e                 Type     Value    Attr
+
+ADCOutPort1  . . . . . . . . . .	Number	 00F7h	 
+ADCOutPort2  . . . . . . . . . .	Number	 00FDh	 
+ADC_InPort . . . . . . . . . . .	Number	 00FEh	 
+ADC_OutPort  . . . . . . . . . .	Number	 00F7h	 
+ButtonInPort . . . . . . . . . .	Number	 00FEh	 
+CompressorsPort  . . . . . . . .	Number	 00FAh	 
+DataHexArr . . . . . . . . . . .	Byte	 0019	  Data	
+DataHexTabl  . . . . . . . . . .	Byte	 0023	  Data	
+DisplayOutPort . . . . . . . . .	Number	 00FEh	 
+DisplayOutPowerPort  . . . . . .	Number	 00FCh	 
+DisplaySensorOutPort . . . . . .	Number	 00FDh	 
+DisplaySensorOutPowerPort  . . .	Number	 00FBh	 
+DoorFreezerOpenFlag  . . . . . .	Byte	 0017	  Data	
+DoorFridgeOpenFlag . . . . . . .	Byte	 0016	  Data	
+FreezerCompressor  . . . . . . .	Byte	 0033	  Data	
+FreezingFlag . . . . . . . . . .	Byte	 0018	  Data	
+FridgeCompressor . . . . . . . .	Byte	 0032	  Data	
+HexArr . . . . . . . . . . . . .	Byte	 0000	  Code	
+HexTabl  . . . . . . . . . . . .	Byte	 000A	  Code	
+IncDecButtonPort . . . . . . . .	Number	 00FCh	 
+InitDataEnd  . . . . . . . . . .	L Near	 0000	  InitData	
+InitDataStart  . . . . . . . . .	L Near	 0000	  InitData	
+MainLoop . . . . . . . . . . . .	L Near	 0704	  Code	
+NMax . . . . . . . . . . . . . .	Number	 0032h	 
+OldIncDecButtonsImage  . . . . .	Byte	 002D	  Data	
+RepairFlag . . . . . . . . . . .	Byte	 0034	  Data	
+RomSize  . . . . . . . . . . . .	Number	 1000h	 
+SelectedTemperatureFreezer . . .	Byte	 0014	  Data	
+SelectedTemperatureFridge  . . .	Byte	 0009	  Data	
+SensorsOutPort . . . . . . . . .	Number	 00FAh	 
+Start  . . . . . . . . . . . . .	L Near	 06EE	  Code	
+StkTop . . . . . . . . . . . . .	Word	 0020	  Stk	
+TemperatureFreezerBCD_Old  . . .	Byte	 000F	  Data	
+TemperatureFreezerBCD_Repair . .	Byte	 0012	  Data	
+TemperatureFreezerBCD  . . . . .	Byte	 000C	  Data	
+TemperatureFreezer . . . . . . .	Byte	 000B	  Data	
+TemperatureFridgeBCD_Old . . . .	Byte	 0004	  Data	
+TemperatureFridgeBCD_Repair  . .	Byte	 0007	  Data	
+TemperatureFridgeBCD . . . . . .	Byte	 0001	  Data	
+TemperatureFridge  . . . . . . .	Byte	 0000	  Data	
+TempretureFreezerOn  . . . . . .	Word	 0030	  Data	
+TimeOutFlagFreezer . . . . . . .	Byte	 003E	  Data	
+TimeOutFlagFridge  . . . . . . .	Byte	 003D	  Data	
+TimerFreezer . . . . . . . . . .	Word	 0039	  Data	
+TimerFridge  . . . . . . . . . .	Word	 0035	  Data	
+WaitModeFreezer  . . . . . . . .	Byte	 002F	  Data	
+WaitModeFridge . . . . . . . . .	Byte	 002E	  Data	
+
+	   0 Warnings
+	   0 Errors

@@ -1,0 +1,6 @@
+[ARCH]=00000000,курсач.arh
+[SOURCE]=00000001,курсач.asm
+[ROMSIZE]=4
+[FREQ]=100000000
+[FREEPINLEVEL]=1
+[WND.arh]=(198,1,1875,886)E:\Demis\kursach__kopia\курсач — копия\курсач.arh
