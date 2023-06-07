@@ -1,20 +1,6 @@
 .386
 ;Задайте объём ПЗУ в байтах
-RomSize    EQU   2048
-
-;			ADC_InPort = 1
-;			ButtonInPort = 1
-;			IncDecButtonPort = 3
-;			ADC_OutPort = 0
-;			ADCOutPort1 = 0
-;			ADCOutPort2 = 2
-;			SensorsOutPort = 5
-;			DisplayOutPort = 1
-;			DisplayOutPowerPort = 3
-;			DisplaySensorOutPort = 2
-;			DisplaySensorOutPowerPort = 4
-;			CompressorsPort = 5
-;			NMax = 50
+RomSize    EQU   4096
 
 			ADC_InPort = 0FEh
 			ButtonInPort = 0FEh
@@ -130,6 +116,7 @@ Initialization PROC									;Обнуление всех ячеек
 		   mov TimerFridge+2, bx
 		   mov TimerFreezer, ax
 		   mov TimerFreezer+2, bx
+		   call CopyArr
 		   Ret
 Initialization ENDP	 
 
@@ -641,14 +628,6 @@ next1:	   lea si, TemperatureFridgeBCD				;
 		   or bp, 80h
 
 NoCorrectionNeeded:
-;		   lea si, TemperatureFridgeBCD_Old
-;		   lea di, TemperatureFridgeBCD
-;		   mov al, [di]
-;		   mov ah, [di+1]
-;		   mov bh, [di+2]
-;		   mov TemperatureFridgeBCD_Old, al
-;		   mov TemperatureFridgeBCD_Old+1, ah
-;		   mov TemperatureFridgeBCD_Old+2, bh
 ToEnd:	   Ret
 RepairModeFridge ENDP
 
@@ -735,14 +714,6 @@ next1:	   lea si, TemperatureFreezerBCD				;
 		   or bp, 40h
 
 NoCorrectionNeeded:
-;		   lea si, TemperatureFreezerBCD_Old
-;		   lea di, TemperatureFreezerBCD
-;		   mov al, [di]
-;		   mov ah, [di+1]
-;		   mov bh, [di+2]
-;		   mov TemperatureFreezerBCD_Old, al
-;		   mov TemperatureFreezerBCD_Old+1, ah
-;		   mov TemperatureFreezerBCD_Old+2, bh
 ToEnd:	   Ret
 RepairModeFreezer ENDP
 
@@ -776,6 +747,7 @@ noFridgeCompressor:
 noFreezerCompressor:
 Exit:
 		   mov bp, ax
+		   call TimerRepairCOntroller
 		   Ret
 RepairModeController ENDP
 
@@ -929,18 +901,16 @@ Start:
            lea   sp,StkTop
 		   
 		   call Initialization
-		   call CopyArr
 MainLoop: 		   
 		   call ButtonsInput
+		   call IncDecButtonsInput
 		   call ADCController
 		   call BinaryToBCDController
 		   call UnpackingResultCOntroller
-		   call IncDecButtonsInput
 		   call IndicatorTempOutControler
-		   call SensorTempOutControler
+		   ;call SensorTempOutControler
 		   call FreezingCOntroller
-		   call RepairModeController
-		   call TimerRepairCOntroller
+		   call RepairModeController   
 		   call LightAndModeOutput
 		   call ToZero
 		   jmp MainLoop
